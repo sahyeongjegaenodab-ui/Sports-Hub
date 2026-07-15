@@ -89,7 +89,47 @@ export class SoccerService implements ServiceInterface {
   }
 
   async getGameDetail(gameId: string): Promise<Game> {
-    throw new Error("Method not implemented.");
+    try {
+      const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/lookupevent.php?id=${gameId}`);
+      const data = await res.json();
+      const e = data.events?.[0];
+      if (!e) throw new Error('Event not found');
+
+      const hasScore = e.intHomeScore !== null && e.intHomeScore !== '' && e.intAwayScore !== null;
+      const state: 'upcoming' | 'live' | 'final' =
+        e.strStatus === 'Match Finished' ? 'final'
+        : hasScore ? 'live'
+        : 'upcoming';
+
+      return {
+        id: e.idEvent,
+        sport: 'soccer',
+        startTime: `${e.dateEvent}T${e.strTime || '00:00:00'}Z`,
+        status: {
+          state,
+          display: state === 'final' ? 'FT' : state === 'live' ? 'LIVE' : (e.strTime?.slice(0, 5) ?? 'TBD'),
+        },
+        homeTeam: {
+          id: e.idHomeTeam || e.strHomeTeam,
+          name: e.strHomeTeam,
+          logo: e.strHomeTeamBadge || '',
+          sport: 'soccer',
+        },
+        awayTeam: {
+          id: e.idAwayTeam || e.strAwayTeam,
+          name: e.strAwayTeam,
+          logo: e.strAwayTeamBadge || '',
+          sport: 'soccer',
+        },
+        homeScore: hasScore ? parseInt(e.intHomeScore) : null,
+        awayScore: hasScore ? parseInt(e.intAwayScore) : null,
+        venue: e.strVenue ? `${e.strVenue} · ${e.strLeague}` : (e.strLeague || ''),
+        events: [],
+      };
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
   }
 
   async searchTeams(query: string): Promise<Team[]> {

@@ -2,12 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { MlbService } from '../services/mlb.service';
 import { NbaService } from '../services/nba.service';
 import { NhlService } from '../services/nhl.service';
+import { SoccerService } from '../services/soccer.service';
 import { Game, Standing } from '../services/types';
 
 const services = {
   mlb: new MlbService(),
   nba: new NbaService(),
   nhl: new NhlService(),
+  soccer: new SoccerService(),
 };
 
 export function useGameDetail(sport: string, gameId: string) {
