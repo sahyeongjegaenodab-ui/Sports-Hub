@@ -44,10 +44,8 @@ export class NotificationService {
           icon: icon || '/icon-192.png',
           badge: '/icon-192.png',
           tag: `game-${gameId}`,
-          renotify: false,
-          silent: false,
           data: { gameId },
-        });
+        } as NotificationOptions);
       } else {
         new Notification(title, { body, icon: icon || '/icon-192.png' });
       }
