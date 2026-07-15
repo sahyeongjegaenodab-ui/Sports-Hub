@@ -1,6 +1,18 @@
 import { Game, ServiceInterface, Standing, Team, Player } from './types';
 import { cache } from './cache';
 
+const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports/hockey/nhl';
+
+function dateToEspn(date: string) {
+  return date.replace(/-/g, '');
+}
+
+function parseCompetitors(competition: any): { home: any; away: any } {
+  const home = competition.competitors.find((c: any) => c.homeAway === 'home');
+  const away = competition.competitors.find((c: any) => c.homeAway === 'away');
+  return { home, away };
+}
+
 export class NhlService implements ServiceInterface {
   async getTodayGames(date: string): Promise<Game[]> {
     const cacheKey = `nhl_games_${date}`;
@@ -8,43 +20,43 @@ export class NhlService implements ServiceInterface {
     if (cached) return cached;
 
     try {
-      const res = await fetch(`https://api-web.nhle.com/v1/schedule/${date}`);
+      const res = await fetch(`${ESPN_BASE}/scoreboard?dates=${dateToEspn(date)}`);
       const data = await res.json();
-      
-      const gamesDay = data.gameWeek?.find((gw: any) => gw.date === date);
-      if (!gamesDay) return [];
 
-      const games: Game[] = (gamesDay.games || []).map((g: any) => {
-        const stateCode = g.gameState; // OFF = Final, LIVE/CRIT = Live, FUT/PRE = Upcoming
-        let state: 'upcoming' | 'live' | 'final' = 'upcoming';
-        if (stateCode === 'OFF' || stateCode === 'FINAL') state = 'final';
-        else if (stateCode === 'LIVE' || stateCode === 'CRIT') state = 'live';
+      const games: Game[] = (data.events || []).map((e: any) => {
+        const comp = e.competitions?.[0];
+        const { home, away } = parseCompetitors(comp);
+        const stateStr: string = e.status?.type?.state ?? 'pre';
+        const state: 'upcoming' | 'live' | 'final' =
+          stateStr === 'post' ? 'final' : stateStr === 'in' ? 'live' : 'upcoming';
+
+        const display =
+          state === 'final' ? 'FINAL'
+          : state === 'live' ? `P${e.status.period} ${e.status.displayClock}`
+          : e.status?.type?.shortDetail ?? '';
 
         return {
-          id: g.id.toString(),
-          sport: 'nhl',
-          startTime: g.startTimeUTC,
-          status: {
-            state,
-            display: state === 'final' ? 'FINAL' : state === 'live' ? `${g.periodDescriptor?.periodType || ''} ${g.clock?.timeRemaining || ''}` : new Date(g.startTimeUTC).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          },
+          id: e.id,
+          sport: 'nhl' as const,
+          startTime: e.date,
+          status: { state, display },
           homeTeam: {
-            id: g.homeTeam.id.toString(),
-            name: g.homeTeam.placeName?.default || g.homeTeam.abbrev,
-            abbrev: g.homeTeam.abbrev,
-            logo: `https://assets.nhle.com/logos/nhl/svg/${g.homeTeam.abbrev}_light.svg`,
-            sport: 'nhl'
+            id: home?.team?.id ?? '',
+            name: home?.team?.displayName ?? '',
+            abbrev: home?.team?.abbreviation,
+            logo: home?.team?.logo ?? '',
+            sport: 'nhl' as const,
           },
           awayTeam: {
-            id: g.awayTeam.id.toString(),
-            name: g.awayTeam.placeName?.default || g.awayTeam.abbrev,
-            abbrev: g.awayTeam.abbrev,
-            logo: `https://assets.nhle.com/logos/nhl/svg/${g.awayTeam.abbrev}_light.svg`,
-            sport: 'nhl'
+            id: away?.team?.id ?? '',
+            name: away?.team?.displayName ?? '',
+            abbrev: away?.team?.abbreviation,
+            logo: away?.team?.logo ?? '',
+            sport: 'nhl' as const,
           },
-          homeScore: g.homeTeam.score ?? null,
-          awayScore: g.awayTeam.score ?? null,
-          venue: g.venue?.default || ''
+          homeScore: home?.score != null ? parseInt(home.score) : null,
+          awayScore: away?.score != null ? parseInt(away.score) : null,
+          venue: comp?.venue?.fullName ?? '',
         };
       });
 
@@ -60,27 +72,42 @@ export class NhlService implements ServiceInterface {
     return this.getTodayGames(date);
   }
 
-  async getStandings(leagueId: string): Promise<Standing[]> {
-    try {
-      const res = await fetch(`https://api-web.nhle.com/v1/standings/now`);
-      const data = await res.json();
-      
-      const standings: Standing[] = data.standings.map((st: any) => ({
-        team: {
-          id: st.teamAbbrev.default,
-          name: st.teamName.default,
-          abbrev: st.teamAbbrev.default,
-          logo: `https://assets.nhle.com/logos/nhl/svg/${st.teamAbbrev.default}_light.svg`,
-          sport: 'nhl'
-        },
-        rank: st.leagueSequence,
-        wins: st.wins,
-        losses: st.losses,
-        drawsOrPct: st.otLosses?.toString() || '0',
-        ptsOrGb: st.points?.toString() || '0',
-        streak: `${st.streakCode || ''}${st.streakCount || ''}`
-      }));
+  async getStandings(_leagueId: string): Promise<Standing[]> {
+    const cacheKey = 'nhl_standings';
+    const cached = cache.get<Standing[]>(cacheKey);
+    if (cached) return cached;
 
+    try {
+      const res = await fetch(`${ESPN_BASE}/standings`);
+      const data = await res.json();
+
+      const standings: Standing[] = [];
+      let rank = 1;
+
+      for (const conference of (data.children ?? [])) {
+        for (const entry of (conference.standings?.entries ?? [])) {
+          const stats: Record<string, number> = {};
+          for (const s of (entry.stats ?? [])) stats[s.name] = s.value;
+
+          standings.push({
+            team: {
+              id: entry.team.id,
+              name: entry.team.displayName,
+              abbrev: entry.team.abbreviation,
+              logo: entry.team.logos?.[0]?.href ?? '',
+              sport: 'nhl' as const,
+            },
+            rank: rank++,
+            wins: stats['wins'] ?? 0,
+            losses: stats['losses'] ?? 0,
+            drawsOrPct: stats['otLosses'] != null ? stats['otLosses'].toString() : '-',
+            ptsOrGb: stats['points'] != null ? stats['points'].toString() : '-',
+            streak: entry.stats?.find((s: any) => s.name === 'streak')?.displayValue ?? '',
+          });
+        }
+      }
+
+      cache.set(cacheKey, standings, 300);
       return standings;
     } catch (e) {
       console.error(e);
@@ -90,39 +117,44 @@ export class NhlService implements ServiceInterface {
 
   async getGameDetail(gameId: string): Promise<Game> {
     try {
-      const res = await fetch(`https://api-web.nhle.com/v1/gamecenter/${gameId}/landing`);
+      const res = await fetch(`${ESPN_BASE}/summary?event=${gameId}`);
       const data = await res.json();
-      
-      const stateCode = data.gameState;
-      let state: 'upcoming' | 'live' | 'final' = 'upcoming';
-      if (stateCode === 'OFF' || stateCode === 'FINAL') state = 'final';
-      else if (stateCode === 'LIVE' || stateCode === 'CRIT') state = 'live';
+      const e = data.header?.competitions?.[0];
+      if (!e) throw new Error('Game not found');
+
+      const { home, away } = parseCompetitors(e);
+      const stateStr: string = e.status?.type?.state ?? 'pre';
+      const state: 'upcoming' | 'live' | 'final' =
+        stateStr === 'post' ? 'final' : stateStr === 'in' ? 'live' : 'upcoming';
 
       return {
-        id: gameId.toString(),
-        sport: 'nhl',
-        startTime: data.startTimeUTC,
+        id: gameId,
+        sport: 'nhl' as const,
+        startTime: e.date ?? '',
         status: {
           state,
-          display: state === 'final' ? 'FINAL' : state === 'live' ? `${data.periodDescriptor?.periodType || ''} ${data.clock?.timeRemaining || ''}` : new Date(data.startTimeUTC).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          display: state === 'final' ? 'FINAL'
+            : state === 'live' ? `P${e.status.period} ${e.status.displayClock}`
+            : e.status?.type?.shortDetail ?? '',
         },
         homeTeam: {
-          id: data.homeTeam.id.toString(),
-          name: data.homeTeam.placeName?.default || data.homeTeam.abbrev,
-          abbrev: data.homeTeam.abbrev,
-          logo: `https://assets.nhle.com/logos/nhl/svg/${data.homeTeam.abbrev}_light.svg`,
-          sport: 'nhl'
+          id: home?.team?.id ?? '',
+          name: home?.team?.displayName ?? '',
+          abbrev: home?.team?.abbreviation,
+          logo: home?.team?.logo ?? '',
+          sport: 'nhl' as const,
         },
         awayTeam: {
-          id: data.awayTeam.id.toString(),
-          name: data.awayTeam.placeName?.default || data.awayTeam.abbrev,
-          abbrev: data.awayTeam.abbrev,
-          logo: `https://assets.nhle.com/logos/nhl/svg/${data.awayTeam.abbrev}_light.svg`,
-          sport: 'nhl'
+          id: away?.team?.id ?? '',
+          name: away?.team?.displayName ?? '',
+          abbrev: away?.team?.abbreviation,
+          logo: away?.team?.logo ?? '',
+          sport: 'nhl' as const,
         },
-        homeScore: data.homeTeam.score ?? null,
-        awayScore: data.awayTeam.score ?? null,
-        venue: data.venue?.default || ''
+        homeScore: home?.score != null ? parseInt(home.score) : null,
+        awayScore: away?.score != null ? parseInt(away.score) : null,
+        venue: e.venue?.fullName ?? '',
+        events: [],
       };
     } catch (e) {
       console.error(e);
@@ -132,14 +164,27 @@ export class NhlService implements ServiceInterface {
 
   async searchTeams(query: string): Promise<Team[]> {
     try {
-      const st = await this.getStandings('');
+      const res = await fetch(`${ESPN_BASE}/teams`);
+      const data = await res.json();
       const q = query.toLowerCase();
-      return st.map(s => s.team).filter(t => t.name.toLowerCase().includes(q) || (t.abbrev && t.abbrev.toLowerCase().includes(q)));
-    } catch (e) {
+      return (data.sports?.[0]?.leagues?.[0]?.teams ?? [])
+        .map((t: any) => t.team)
+        .filter((t: any) =>
+          t.displayName?.toLowerCase().includes(q) ||
+          t.abbreviation?.toLowerCase().includes(q)
+        )
+        .map((t: any) => ({
+          id: t.id,
+          name: t.displayName,
+          abbrev: t.abbreviation,
+          logo: t.logos?.[0]?.href ?? '',
+          sport: 'nhl' as const,
+        }));
+    } catch {
       return [];
     }
   }
 
-  async getTeamDetail(teamId: string): Promise<any> { return { team: { id: teamId, sport: 'nhl' }}; }
+  async getTeamDetail(teamId: string): Promise<any> { return { team: { id: teamId, sport: 'nhl' } }; }
   async getPlayerDetail(playerId: string): Promise<any> { return {}; }
 }
