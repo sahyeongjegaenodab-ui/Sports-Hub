@@ -6,6 +6,7 @@ export interface UserPrefs {
   refreshInterval: number; // seconds
   theme: 'dark' | 'light';
   language: string;
+  onboardingComplete: boolean;
 }
 
 const defaultPrefs: UserPrefs = {
@@ -14,6 +15,7 @@ const defaultPrefs: UserPrefs = {
   refreshInterval: 30,
   theme: 'dark',
   language: 'en',
+  onboardingComplete: false,
 };
 
 export function useUserPrefs() {
@@ -28,11 +30,12 @@ export function useUserPrefs() {
   });
 
   const updatePrefs = useCallback((updates: Partial<UserPrefs>) => {
-    setPrefs((prev) => {
-      const next = { ...prev, ...updates };
-      localStorage.setItem('sportshub_prefs', JSON.stringify(next));
-      return next;
-    });
+    // Write to localStorage SYNCHRONOUSLY so it's available before any navigation
+    const stored = localStorage.getItem('sportshub_prefs');
+    const current = stored ? { ...defaultPrefs, ...JSON.parse(stored) } : defaultPrefs;
+    const next = { ...current, ...updates };
+    localStorage.setItem('sportshub_prefs', JSON.stringify(next));
+    setPrefs(next);
   }, []);
 
   return { prefs, updatePrefs };

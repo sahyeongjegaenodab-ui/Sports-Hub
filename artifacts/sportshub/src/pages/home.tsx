@@ -17,12 +17,12 @@ export default function Home() {
   const { data: games, isLoading } = useLiveGames(selectedDate);
 
   useEffect(() => {
-    if (prefs.sports.length === 0) {
+    if (!prefs.onboardingComplete) {
       setLocation('/onboarding');
     }
-  }, [prefs.sports.length, setLocation]);
+  }, [prefs.onboardingComplete, setLocation]);
 
-  if (prefs.sports.length === 0) return null;
+  if (!prefs.onboardingComplete) return null;
 
   const displayDate = new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 

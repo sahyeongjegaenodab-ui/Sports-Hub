@@ -47,7 +47,8 @@ export default function Onboarding() {
     if (step === 1 && selectedSports.length > 0) {
       setStep(2);
     } else if (step === 2) {
-      updatePrefs({ sports: selectedSports });
+      // updatePrefs now writes localStorage synchronously before navigation
+      updatePrefs({ sports: selectedSports, onboardingComplete: true });
       setLocation('/');
     }
   };
