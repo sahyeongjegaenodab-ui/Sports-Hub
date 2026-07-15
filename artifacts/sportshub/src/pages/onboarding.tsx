@@ -27,7 +27,25 @@ export default function Onboarding() {
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const services = { mlb: new MlbService(), nba: new NbaService(), nhl: new NhlService(), soccer: new SoccerService() };
+  // NFL uses TheSportsDB search filtered to American Football
+  const nflSearchTeams = async (query: string) => {
+    try {
+      const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (!data.teams) return [];
+      return data.teams
+        .filter((t: any) => t.strSport === 'American Football')
+        .map((t: any) => ({ id: t.idTeam, name: t.strTeam, abbrev: t.strTeamShort, logo: t.strBadge, sport: 'nfl' }));
+    } catch { return []; }
+  };
+
+  const services = {
+    mlb: new MlbService(),
+    nba: new NbaService(),
+    nhl: new NhlService(),
+    soccer: new SoccerService(),
+    nfl: { searchTeams: nflSearchTeams },
+  };
 
   const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ['searchTeams', searchQuery, selectedSports],
