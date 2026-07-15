@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useUserPrefs } from '../hooks/useUserPrefs';
 import { useLiveGames } from '../hooks/useLiveGames';
@@ -13,12 +13,16 @@ export default function Home() {
   const { favorites } = useFavoriteTeams();
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
 
-  if (prefs.sports.length === 0) {
-    setLocation('/onboarding');
-    return null;
-  }
-
+  // All hooks must be called unconditionally before any early returns
   const { data: games, isLoading } = useLiveGames(selectedDate);
+
+  useEffect(() => {
+    if (prefs.sports.length === 0) {
+      setLocation('/onboarding');
+    }
+  }, [prefs.sports.length, setLocation]);
+
+  if (prefs.sports.length === 0) return null;
 
   const displayDate = new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
