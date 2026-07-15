@@ -3,17 +3,68 @@ import { cache } from './cache';
 
 export class SoccerService implements ServiceInterface {
   async getTodayGames(date: string): Promise<Game[]> {
-    // TheSportsDB free tier doesn't have a good "all today" endpoint without key
-    return [];
+    const cacheKey = `soccer_games_${date}`;
+    const cached = cache.get<Game[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=${date}&s=Soccer`);
+      const data = await res.json();
+      if (!data.events) return [];
+
+      const games: Game[] = data.events.map((e: any) => {
+        const hasScore = e.intHomeScore !== null && e.intHomeScore !== '' && e.intAwayScore !== null;
+        const isLive = e.strStatus === 'Match Finished' ? false : hasScore;
+        const state: 'upcoming' | 'live' | 'final' =
+          e.strStatus === 'Match Finished' ? 'final'
+          : isLive ? 'live'
+          : 'upcoming';
+
+        return {
+          id: e.idEvent,
+          sport: 'soccer',
+          startTime: `${e.dateEvent}T${e.strTime || '00:00:00'}Z`,
+          status: {
+            state,
+            display: state === 'final' ? 'FT'
+              : state === 'live' ? 'LIVE'
+              : e.strTime ? e.strTime.slice(0, 5) : 'TBD',
+          },
+          homeTeam: {
+            id: e.idHomeTeam || e.strHomeTeam,
+            name: e.strHomeTeam,
+            logo: e.strHomeTeamBadge || '',
+            sport: 'soccer',
+          },
+          awayTeam: {
+            id: e.idAwayTeam || e.strAwayTeam,
+            name: e.strAwayTeam,
+            logo: e.strAwayTeamBadge || '',
+            sport: 'soccer',
+          },
+          homeScore: hasScore ? parseInt(e.intHomeScore) : null,
+          awayScore: hasScore ? parseInt(e.intAwayScore) : null,
+          venue: e.strVenue ? `${e.strVenue} · ${e.strLeague}` : (e.strLeague || ''),
+        };
+      });
+
+      cache.set(cacheKey, games, 120);
+      return games;
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
   }
 
   async getSchedule(date: string): Promise<Game[]> {
-    return [];
+    return this.getTodayGames(date);
   }
 
   async getStandings(leagueId: string): Promise<Standing[]> {
+    // World Cup uses year-only season format; club leagues use YYYY-YYYY
+    const season = leagueId === '4429' ? '2026' : '2025-2026';
     try {
-      const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/lookuptable.php?l=${leagueId}&s=2024-2025`);
+      const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/lookuptable.php?l=${leagueId}&s=${season}`);
       const data = await res.json();
       if (!data.table) return [];
       

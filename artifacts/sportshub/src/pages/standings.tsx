@@ -4,11 +4,16 @@ import { useStandings } from '../hooks/useStandings';
 import { useFavoriteTeams } from '../hooks/useFavoriteTeams';
 
 const LEAGUES = [
-  { id: '103', name: 'MLB AL', sport: 'mlb' },
-  { id: '104', name: 'MLB NL', sport: 'mlb' },
-  { id: 'nba', name: 'NBA', sport: 'nba' },
-  { id: 'nhl', name: 'NHL', sport: 'nhl' },
-  { id: '4328', name: 'Premier League', sport: 'soccer' },
+  { id: '103',  name: 'MLB AL',          sport: 'mlb' },
+  { id: '104',  name: 'MLB NL',          sport: 'mlb' },
+  { id: 'nba',  name: 'NBA',             sport: 'nba' },
+  { id: 'nhl',  name: 'NHL',             sport: 'nhl' },
+  { id: '4429', name: '🏆 World Cup',    sport: 'soccer' },
+  { id: '4328', name: 'Premier League',  sport: 'soccer' },
+  { id: '4335', name: 'La Liga',         sport: 'soccer' },
+  { id: '4331', name: 'Bundesliga',      sport: 'soccer' },
+  { id: '4332', name: 'Serie A',         sport: 'soccer' },
+  { id: '4334', name: 'Ligue 1',         sport: 'soccer' },
 ];
 
 export default function Standings() {
