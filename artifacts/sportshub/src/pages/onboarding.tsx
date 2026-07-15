@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MlbService } from '../services/mlb.service';
 import { NbaService } from '../services/nba.service';
 import { NhlService } from '../services/nhl.service';
+import { SoccerService } from '../services/soccer.service';
 
 const SPORTS = [
   { id: 'mlb', name: 'Baseball', icon: '⚾️' },
@@ -26,7 +27,7 @@ export default function Onboarding() {
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const services = { mlb: new MlbService(), nba: new NbaService(), nhl: new NhlService() };
+  const services = { mlb: new MlbService(), nba: new NbaService(), nhl: new NhlService(), soccer: new SoccerService() };
 
   const { data: searchResults, isLoading: isSearching } = useQuery({
     queryKey: ['searchTeams', searchQuery, selectedSports],
