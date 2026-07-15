@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "SportsHub"
+version = "1.0.0"
+id = "artifacts/sportshub"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21476
+
+[services.development]
+run = "pnpm --filter @workspace/sportshub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sportshub", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/sportshub/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21476"
+BASE_PATH = "/"
