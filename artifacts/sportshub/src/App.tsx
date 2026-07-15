@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { Suspense, lazy } from 'react';
+import { useNotifications } from './hooks/useNotifications';
 
 const Home = lazy(() => import('./pages/home'));
 const Onboarding = lazy(() => import('./pages/onboarding'));
@@ -30,9 +31,15 @@ function Loading() {
   );
 }
 
+function NotificationManager() {
+  useNotifications();
+  return null;
+}
+
 function Router() {
   return (
     <Suspense fallback={<Loading />}>
+      <NotificationManager />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/onboarding" component={Onboarding} />

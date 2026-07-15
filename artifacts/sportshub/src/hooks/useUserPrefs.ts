@@ -7,6 +7,8 @@ export interface UserPrefs {
   theme: 'dark' | 'light';
   language: string;
   onboardingComplete: boolean;
+  notifications: boolean;
+  notifyBefore: number; // minutes before game start
 }
 
 const defaultPrefs: UserPrefs = {
@@ -16,6 +18,8 @@ const defaultPrefs: UserPrefs = {
   theme: 'dark',
   language: 'en',
   onboardingComplete: false,
+  notifications: false,
+  notifyBefore: 30,
 };
 
 export function useUserPrefs() {
